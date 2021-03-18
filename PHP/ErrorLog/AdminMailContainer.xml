@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mailset>
+    <mail>
+        <adress>rigaard@i.ua</adress>
+        <username>rigaard</username>
+        <sendexception>true</sendexception>
+        <sendmessage>true</sendmessage>
+    </mail>
+</mailset>
