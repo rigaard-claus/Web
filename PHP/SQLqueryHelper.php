@@ -7,18 +7,19 @@ namespace sqlQueryHelper;
  * Simple SQL framework
  * @author Rigaard
  */
+define("VARCHAR", "0");
+define("INT", "1");
+define("FLOAT", "2");
+define("BIT", "2");
+
+define("SELECT", "select");
+define("INSERT", "insert");
+define("UPDATE", "update");
+define("DELETE", "delete");
+
 class sqlQueryHelper {
 
-    const type_VARCHAR = 0;
-    const type_INT = 1;
-    const type_FLOAT = 2;
-    const type_BIT = 3;
-    const SQL_SELECT = 'select';
-    const SQL_INSERT = 'insert';
-    const SQL_UPDATE = 'update';
-
     public function __construct() {
-        $this->query = new __queryData(); // init query class
         $this->success = false;
     }
 
@@ -39,21 +40,42 @@ class sqlQueryHelper {
     //////////////////22.03.2021//
     public $data = array();
     public $error;
-    public $query;
+    public $table;
+    public $value = array();
+    public $where; //condition (todo)
+    public $attributes; //limit, order etc
     public $debug;
-    public $operation;
     public $success;
 
-    public function query2sql() {
-        switch ($this->operation) {
-            case self::SQL_SELECT :
+    ////////////////////////
+    ///get set main value///
+    ///////////////Rigaard//
+    ////////////24.03.2021//
+    public function addvalue($name, $type = null, $value = null) {
+        $newValue = new __fieldType();
+        $newValue->name = $name;
+        $newValue->type = $type;
+        $newValue->value = $value;
+        array_push($this->value, $newValue);
+    }
+
+    /////////////////////////
+    ///start query request///
+    ////////////////Rigaard//
+    /////////////24.03.2021//
+    public function query2sql($operation) {
+        switch ($operation) {
+            case SELECT :
                 $this->select();
                 break;
-            case self::SQL_INSERT :
+            case INSERT :
                 $this->insert();
                 break;
-            case self::SQL_UPDATE :
+            case UPDATE :
                 $this->update();
+                break;
+            case DELETE :
+                $this->delete();
                 break;
             default :
                 $this->error = "sql_operation undefined";
@@ -63,18 +85,18 @@ class sqlQueryHelper {
 
     public function select() {
         try {
-            if (!empty($this->query->values)) {
+            if (!empty($this->value)) {
                 $values = "";
-                foreach ($this->query->values as $val) {
+                foreach ($this->value as $val) {
                     if ($values === "") {
-                        $values = " " . $val;
+                        $values = " " . $val->name;
                     } else {
-                        $values = $values . "," . $val;
+                        $values = $values . "," . $val->name;
                     }
                 }
-                $selectQuery = self::SQL_SELECT . $values . " from " . $this->query->table;
+                $selectQuery = SELECT . $values . " from " . $this->table;
             } else {
-                $selectQuery = self::SQL_SELECT . " * from " . $this->query->table;
+                $selectQuery = SELECT . " * from " . $this->table;
             }
 
             $result = $this->connecton->query($selectQuery);
@@ -95,39 +117,19 @@ class sqlQueryHelper {
 
     public function insert() {
         try {
-            $parameters = $this->query->values;
-            if (!empty($parameters)) {
-                $keys = array_keys($parameters);
+            if (!empty($this->value)) {
                 $values = "";
-                $valuesData = "";
-                foreach ($keys as $key) {
-                    $formattedData = "";
-                    switch ($parameters[$key]) {
-                        case str_contains($parameters[$key], '(BIT)') :
-                            $formattedData = str_replace("(BIT)", "", $parameters[$key]);
-                            break;
-                        case str_contains($parameters[$key], '(VARCHAR)') :
-                            $formattedData = "'" . str_replace("(VARCHAR)", "", $parameters[$key]) . "'";
-                            break;
-                        case str_contains($parameters[$key], '(FLOAT)') :
-                            $formattedData = str_replace("(FLOAT)", "", $parameters[$key]);
-                            break;
-                        case str_contains($parameters[$key], '(INT)') :
-                            $formattedData = str_replace("(INT)", "", $parameters[$key]);
-                            break;
-                        default :
-                            $formattedData = "'" . $parameters[$key] . "'";
-                            break;
-                    }
+                $fields = "";
+                foreach ($this->value as $field) {
                     if ($values === "") {
-                        $values = $key;
-                        $valuesData = $formattedData;
+                        $values = $field->name;
+                        $fields = $this->format($field);
                     } else {
-                        $values = $values . "," . $key;
-                        $valuesData = $valuesData . "," . $formattedData;
+                        $values = $values . "," . $field->name;
+                        $fields = $fields . "," . $this->format($field);
                     }
                 }
-                $insertQuery = self::SQL_INSERT . " into " . $this->query->table . "(" . $values . ") values (" . $valuesData . ")";
+                $insertQuery = INSERT . " into " . $this->table . "(" . $values . ") values (" . $fields . ")";
                 $this->connecton->query($insertQuery);
                 $this->success = true;
             } else {
@@ -138,30 +140,87 @@ class sqlQueryHelper {
         }
     }
 
-    public function update($queryData) {
+    public function update() {
         try {
-            
+            if (!empty($this->where) and!empty($this->value)) {
+                $values = "";
+                foreach ($this->value as $field) {
+                    if ($values === "") {
+                        $values = $field->name . "=" . $this->format($field);
+                    } else {
+                        $values = $values . "," . $field->name . "=" . $this->format($field);
+                    }
+                }
+                $updateQuery = UPDATE . " " . $this->table . " set " . $values . " where " . $this->where;
+                echo "</br>";
+                echo $updateQuery;
+                echo "</br>";
+                $this->connecton->query($updateQuery);
+                $this->success = true;
+            } else {
+                $this->success = false;
+            }
         } catch (Exception $ex) {
             $this->error = $ex;
         }
     }
 
+    public function delete() {
+        try {
+            $this->success = false;
+            if (empty($this->attributes)) {
+                $deleteQuery = DELETE . " from " . $this->table;
+                $this->connecton->query($deleteQuery);
+            } else {
+                echo "</br>TODO attr";
+            }
+            $this->success = true;
+        } catch (Exception $ex) {
+            $this->error = $ex;
+        }
+    }
+    
+    ////////////////////////////////////////
+    ///convert values to string sql query///
+    ///////////////////////////////Rigaard//
+    ////////////////////////////24.03.2021//
+    function format($field) {
+        $formattedField = "";
+        switch ($field->type) {
+            case BIT:
+                if ($field->value === false) {
+                    $formattedField = "false";
+                } else if ($field->value === true) {
+                    $formattedField = "true";
+                } else {
+                    $formattedField = $field->value; // 0 or 1
+                }
+                break;
+            case VARCHAR:
+                $formattedField = "'" . $field->value . "'";
+                break;
+            case FLOAT:
+                $formattedField = $field->value;
+                break;
+            case INT:
+                $formattedField = $field->value;
+                break;
+            default :
+                $formattedField = "'" . $field->value . "'";
+                break;
+        }
+        return $formattedField;
+    }
 }
 
-/////////////////
-///query class///
-////////Rigaard//
-/////22.03.2021//
-class __queryData {
-
-    public function __construct() {
-        $this->values = array(); // new array
-    }
-
-    public $table; // tablename
-    public $values = array();
-    public $attribute; //desc limit and other...
-
+///////////////////
+///field options///
+//////////Rigaard//
+///////24.03.2021//
+class __fieldType {
+    public $name;
+    public $type;
+    public $value;
 }
 
 ?>
